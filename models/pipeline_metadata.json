@@ -1,0 +1,36 @@
+{
+  "model_type": "GradientBoosting",
+  "training_date": "2025-08-13T07:49:39.804218",
+  "dataset_shape": [
+    2000,
+    22
+  ],
+  "feature_count": 21,
+  "class_names": [
+    "High Risk",
+    "Low Risk",
+    "Medium Risk"
+  ],
+  "performance": {
+    "RandomForest": {
+      "test_score": 0.9025,
+      "cv_score": 0.9678466076696164,
+      "auc_score": null
+    },
+    "GradientBoosting": {
+      "test_score": 0.9575,
+      "cv_score": 0.9793510324483776,
+      "auc_score": null
+    },
+    "LogisticRegression": {
+      "test_score": 0.7125,
+      "cv_score": 0.7941002949852507,
+      "auc_score": null
+    },
+    "SVM": {
+      "test_score": 0.8875,
+      "cv_score": 0.9699115044247788,
+      "auc_score": null
+    }
+  }
+}

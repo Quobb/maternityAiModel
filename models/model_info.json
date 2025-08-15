@@ -1,0 +1,26 @@
+{
+  "risk_model_type": "RandomForestClassifier",
+  "n_features": 10,
+  "risk_classes": [
+    "High Risk",
+    "Low Risk",
+    "Medium Risk"
+  ],
+  "feature_columns": [
+    "Age",
+    "GestationalWeek",
+    "SystolicBP",
+    "DiastolicBP",
+    "BloodSugar",
+    "BodyTemp",
+    "HeartRate",
+    "BMI",
+    "PreviousPregnancies",
+    "WeightGain"
+  ],
+  "recommendation_classes": [
+    "Exercise Focus",
+    "Nutrition Focus",
+    "Wellness Focus"
+  ]
+}

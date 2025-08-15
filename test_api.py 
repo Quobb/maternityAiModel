@@ -1,0 +1,338 @@
+import requests
+import json
+from datetime import datetime
+
+# Configuration
+BASE_URL = "http://localhost:8000"
+HEADERS = {"Content-Type": "application/json"}
+
+def test_api_health():
+    """Test API health check"""
+    print("🔍 Testing API Health Check...")
+    try:
+        response = requests.get(f"{BASE_URL}/health")
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ API Status: {data['status']}")
+            print(f"🤖 AI System: {'Available' if data['ai_system_available'] else 'Not Available'}")
+            print(f"🧠 Models: {'Loaded' if data['models_loaded'] else 'Not Loaded'}")
+            print(f"💬 Chat: {'Available' if data['chat_available'] else 'Not Available'}")
+            return True
+        else:
+            print(f"❌ Health check failed: {response.status_code}")
+            return False
+    except Exception as e:
+        print(f"❌ Health check error: {str(e)}")
+        return False
+
+def test_model_status():
+    """Test model status endpoint"""
+    print("\n🔍 Testing Model Status...")
+    try:
+        response = requests.get(f"{BASE_URL}/model-status")
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Models Available: {data['models_available']}")
+            print(f"💬 Chat Model: {'Available' if data['chat_model_available'] else 'Not Available'}")
+            if 'model_details' in data:
+                print("📊 Model Details:")
+                for model_name, details in data['model_details'].items():
+                    print(f"  - {model_name}: {details['algorithm']} (Accuracy: {details['accuracy']})")
+            return True
+        else:
+            print(f"❌ Model status failed: {response.status_code}")
+            return False
+    except Exception as e:
+        print(f"❌ Model status error: {str(e)}")
+        return False
+
+def test_simple_prediction():
+    """Test simple prediction endpoint"""
+    print("\n🔍 Testing Simple Prediction...")
+    
+    test_data = {
+        "age": 28,
+        "gestational_age": 32.0,
+        "weight_pre_pregnancy": 65.0,
+        "height": 165.0,
+        "systolic_bp": 125,
+        "diastolic_bp": 80
+    }
+    
+    try:
+        response = requests.post(f"{BASE_URL}/predict-simple", 
+                               json=test_data, headers=HEADERS)
+        if response.status_code == 200:
+            data = response.json()
+            print("✅ Simple prediction successful!")
+            print(f"📊 Predictions available: {len(data['predictions'])}")
+            print(f"💡 Recommendations: {len(data['recommendations'])}")
+            
+            # Show key predictions
+            if 'risk_level' in data['predictions']:
+                risk = data['predictions']['risk_level']
+                print(f"🎯 Risk Level: {risk['prediction']} (Confidence: {risk['confidence']:.2f})")
+            
+            return True
+        else:
+            print(f"❌ Simple prediction failed: {response.status_code}")
+            print(f"Response: {response.text}")
+            return False
+    except Exception as e:
+        print(f"❌ Simple prediction error: {str(e)}")
+        return False
+
+def test_comprehensive_prediction():
+    """Test comprehensive prediction endpoint"""
+    print("\n🔍 Testing Comprehensive Prediction...")
+    
+    test_data = {
+        "age": 32,
+        "gestational_age": 28.0,
+        "weight_pre_pregnancy": 70.0,
+        "height": 168.0,
+        "systolic_bp": 135,
+        "diastolic_bp": 85,
+        "glucose_fasting": 95.0,
+        "hemoglobin": 10.5,
+        "previous_pregnancies": 1,
+        "diabetes_history": 0,
+        "hypertension_history": 0,
+        "smoking": 0,
+        "exercise_level": 2,
+        "stress_level": 3,
+        "folic_acid_intake": 1,
+        "prenatal_vitamins": 1
+    }
+    
+    try:
+        response = requests.post(f"{BASE_URL}/predict", 
+                               json=test_data, headers=HEADERS)
+        if response.status_code == 200:
+            data = response.json()
+            print("✅ Comprehensive prediction successful!")
+            print(f"📊 Predictions: {len(data['predictions'])}")
+            print(f"💡 Recommendations: {len(data['recommendations'])}")
+            print(f"📚 Educational Resources: {len(data['educational_resources'])}")
+            
+            # Show sample predictions
+            for pred_name, pred_data in list(data['predictions'].items())[:3]:
+                if 'prediction' in pred_data:
+                    print(f"  - {pred_name}: {pred_data['prediction']} ({pred_data['algorithm_used']})")
+            
+            return True
+        else:
+            print(f"❌ Comprehensive prediction failed: {response.status_code}")
+            print(f"Response: {response.text}")
+            return False
+    except Exception as e:
+        print(f"❌ Comprehensive prediction error: {str(e)}")
+        return False
+
+def test_chat():
+    """Test chat endpoint"""
+    print("\n🔍 Testing Chat Functionality...")
+    
+    test_messages = [
+        "Hello, I'm 28 weeks pregnant and feeling anxious",
+        "What should I eat during my second trimester?",
+        "I'm experiencing some back pain, is this normal?",
+        "Tell me about gestational diabetes",
+        "I have severe bleeding and chest pain"  # Emergency test
+    ]
+    
+    for i, message in enumerate(test_messages, 1):
+        print(f"\n💬 Test {i}: {message[:50]}...")
+        
+        chat_data = {
+            "message": message,
+            "user_id": f"test_user_{i}"
+        }
+        
+        try:
+            response = requests.post(f"{BASE_URL}/chat", 
+                                   json=chat_data, headers=HEADERS)
+            if response.status_code == 200:
+                data = response.json()
+                print(f"✅ Response: {data['response'][:100]}...")
+                if data.get('emergency'):
+                    print("🚨 Emergency detected!")
+                if data.get('intent'):
+                    print(f"🎯 Intent: {data['intent']} (Confidence: {data.get('confidence', 0):.2f})")
+                if data.get('suggestions'):
+                    print(f"💡 Suggestions: {len(data['suggestions'])}")
+            else:
+                print(f"❌ Chat failed: {response.status_code}")
+        except Exception as e:
+            print(f"❌ Chat error: {str(e)}")
+    
+    return True
+
+def test_integrated_consultation():
+    """Test integrated consultation endpoint"""
+    print("\n🔍 Testing Integrated Consultation...")
+    
+    consultation_data = {
+        "message": "How am I doing? Should I be worried about anything?",
+        "user_id": "test_user",
+        "health_data": {
+            "age": 30,
+            "gestational_age": 35.0,
+            "weight_pre_pregnancy": 68.0,
+            "height": 165.0,
+            "systolic_bp": 140,
+            "diastolic_bp": 90,
+            "glucose_fasting": 110.0,
+            "hemoglobin": 10.0,
+            "stress_level": 4
+        }
+    }
+    
+    try:
+        response = requests.post(f"{BASE_URL}/integrated-consultation", 
+                               json=consultation_data, headers=HEADERS)
+        if response.status_code == 200:
+            data = response.json()
+            print("✅ Integrated consultation successful!")
+            print(f"💬 Chat Response: {data['chat_response'][:100]}...")
+            
+            if data['prediction_results']:
+                print(f"📊 Predictions available: {len(data['prediction_results'])}")
+            
+            if data['health_recommendations']:
+                print(f"💡 Recommendations: {len(data['health_recommendations'])}")
+                print(f"  Top recommendation: {data['health_recommendations'][0][:80]}...")
+            
+            if data['clinical_insights']:
+                print(f"🔍 Clinical insights: {len(data['clinical_insights'])}")
+                
+            return True
+        else:
+            print(f"❌ Integrated consultation failed: {response.status_code}")
+            print(f"Response: {response.text}")
+            return False
+    except Exception as e:
+        print(f"❌ Integrated consultation error: {str(e)}")
+        return False
+
+def test_health_report():
+    """Test health report generation"""
+    print("\n🔍 Testing Health Report Generation...")
+    
+    report_data = {
+        "age": 29,
+        "gestational_age": 30.0,
+        "weight_pre_pregnancy": 62.0,
+        "height": 162.0,
+        "systolic_bp": 128,
+        "diastolic_bp": 82,
+        "glucose_fasting": 88.0,
+        "hemoglobin": 11.2,
+        "previous_pregnancies": 0,
+        "smoking": 0,
+        "exercise_level": 3,
+        "stress_level": 2
+    }
+    
+    try:
+        response = requests.post(f"{BASE_URL}/health-report", 
+                               json=report_data, headers=HEADERS)
+        if response.status_code == 200:
+            data = response.json()
+            print("✅ Health report generated successfully!")
+            print(f"👤 Patient Summary: {data['patient_summary']['gestational_age']}")
+            print(f"📊 Risk Predictions available: {len(data['risk_predictions'])}")
+            print(f"💡 Recommendations: {len(data['recommendations'])}")
+            print(f"📚 Educational Resources: {len(data['educational_resources'])}")
+            
+            return True
+        else:
+            print(f"❌ Health report failed: {response.status_code}")
+            print(f"Response: {response.text}")
+            return False
+    except Exception as e:
+        print(f"❌ Health report error: {str(e)}")
+        return False
+
+def test_risk_assessment():
+    """Test risk assessment endpoint"""
+    print("\n🔍 Testing Risk Assessment...")
+    
+    risk_data = {
+        "age": 38,  # Advanced maternal age
+        "gestational_age": 26.0,
+        "weight_pre_pregnancy": 85.0,  # Higher BMI
+        "height": 165.0,
+        "systolic_bp": 145,  # Elevated BP
+        "diastolic_bp": 95,   # Elevated BP
+        "glucose_fasting": 125.0,  # Borderline glucose
+        "diabetes_history": 1,  # Diabetes history
+        "smoking": 1,  # Smoking
+        "stress_level": 4  # High stress
+    }
+    
+    try:
+        response = requests.post(f"{BASE_URL}/risk-assessment", 
+                               json=risk_data, headers=HEADERS)
+        if response.status_code == 200:
+            data = response.json()
+            print("✅ Risk assessment completed!")
+            print(f"🎯 Overall Risk: {data.get('overall_risk', 'Unknown')}")
+            print(f"⚠️ Specific Risks: {len(data.get('specific_risks', {}))}")
+            print(f"💡 Priority Recommendations: {len(data.get('recommendations', []))}")
+            
+            # Show specific risks
+            for risk_name, risk_info in data.get('specific_risks', {}).items():
+                if risk_info['risk'] == 1 or risk_info['risk'] in ['High', 'Medium']:
+                    print(f"  - {risk_name}: {risk_info['risk']} (Confidence: {risk_info['confidence']:.2f})")
+            
+            return True
+        else:
+            print(f"❌ Risk assessment failed: {response.status_code}")
+            print(f"Response: {response.text}")
+            return False
+    except Exception as e:
+        print(f"❌ Risk assessment error: {str(e)}")
+        return False
+
+def main():
+    """Run all API tests"""
+    print("🧪 Advanced Maternal Health AI API Test Suite")
+    print("=" * 60)
+    
+    # Test results
+    results = {}
+    
+    # Run tests
+    results['health_check'] = test_api_health()
+    results['model_status'] = test_model_status()
+    results['simple_prediction'] = test_simple_prediction()
+    results['comprehensive_prediction'] = test_comprehensive_prediction()
+    results['chat'] = test_chat()
+    results['integrated_consultation'] = test_integrated_consultation()
+    results['health_report'] = test_health_report()
+    results['risk_assessment'] = test_risk_assessment()
+    
+    # Summary
+    print("\n" + "=" * 60)
+    print("📊 TEST SUMMARY")
+    print("=" * 60)
+    
+    passed = sum(results.values())
+    total = len(results)
+    
+    for test_name, result in results.items():
+        status = "✅ PASS" if result else "❌ FAIL"
+        print(f"{test_name.replace('_', ' ').title()}: {status}")
+    
+    print(f"\n🎯 Overall Result: {passed}/{total} tests passed")
+    
+    if passed == total:
+        print("🎉 All tests passed! API is working correctly with trained models.")
+    else:
+        print("⚠️ Some tests failed. Check the API setup and model loading.")
+    
+    print(f"\n⏰ Test completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
+if __name__ == "__main__":
+    main()

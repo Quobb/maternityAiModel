@@ -1,0 +1,256 @@
+{
+  "pregnancy_stages": {
+    "patterns": [
+      "first trimester",
+      "second trimester",
+      "third trimester",
+      "early pregnancy",
+      "late pregnancy",
+      "pregnancy stages",
+      "what to expect",
+      "pregnancy timeline",
+      "pregnancy milestones",
+      "fetal development stages",
+      "pregnancy progression"
+    ],
+    "responses": [
+      "Pregnancy has three trimesters, each with unique developments and changes. Which trimester are you in or curious about?",
+      "Each stage of pregnancy brings new developments for both you and baby. The first trimester focuses on organ formation, second on growth and movement, and third on final development and birth preparation.",
+      "Pregnancy progression varies for everyone, but there are general milestones. What specific stage would you like to know about?"
+    ]
+  },
+  "nutrition_comprehensive": {
+    "patterns": [
+      "nutrition plan",
+      "meal planning",
+      "supplements",
+      "prenatal vitamins",
+      "folic acid",
+      "iron deficiency",
+      "vitamin d",
+      "calcium",
+      "omega 3",
+      "dha",
+      "protein needs",
+      "calorie requirements",
+      "weight gain",
+      "healthy recipes",
+      "food safety",
+      "listeria",
+      "toxoplasmosis",
+      "mercury in fish",
+      "caffeine limit",
+      "alcohol pregnancy"
+    ],
+    "responses": [
+      "Proper nutrition is crucial for both you and baby's health. A balanced diet with key nutrients like folate, iron, calcium, and DHA supports healthy development. What specific nutrition questions do you have?",
+      "Prenatal nutrition involves getting adequate calories, protein, vitamins, and minerals. I can help you understand requirements for your stage of pregnancy and any dietary restrictions.",
+      "Food safety during pregnancy is important to prevent infections. This includes avoiding certain foods and proper food handling. Would you like specific guidance?"
+    ]
+  },
+  "complications_conditions": {
+    "patterns": [
+      "gestational diabetes",
+      "preeclampsia",
+      "placenta previa",
+      "preterm labor",
+      "miscarriage",
+      "ectopic pregnancy",
+      "hyperemesis gravidarum",
+      "anemia",
+      "blood pressure",
+      "swelling",
+      "protein in urine",
+      "bleeding",
+      "contractions",
+      "cervical insufficiency",
+      "placental abruption",
+      "intrauterine growth restriction"
+    ],
+    "responses": [
+      "Pregnancy complications can be concerning, but many are manageable with proper care. It's important to work closely with your healthcare provider for monitoring and treatment. Which condition are you concerned about?",
+      "While complications can occur, early detection and management often lead to good outcomes. Regular prenatal care helps identify and address issues early. What symptoms or conditions are you experiencing?",
+      "Each pregnancy complication has specific signs, risks, and treatments. I can provide information, but medical evaluation is essential for proper diagnosis and care."
+    ]
+  },
+  "mental_health_comprehensive": {
+    "patterns": [
+      "anxiety",
+      "depression",
+      "mood swings",
+      "emotional changes",
+      "stress management",
+      "postpartum depression",
+      "baby blues",
+      "prenatal depression",
+      "counseling",
+      "support groups",
+      "coping strategies",
+      "overwhelmed",
+      "scared",
+      "worried",
+      "bonding with baby",
+      "body image",
+      "relationship changes",
+      "fear of labor"
+    ],
+    "responses": [
+      "Mental health is just as important as physical health during pregnancy. It's normal to experience various emotions, but persistent feelings need attention. How are you feeling emotionally?",
+      "Pregnancy can bring many emotional changes due to hormones, life changes, and concerns. Professional support is available and can be very helpful. What specific feelings are you experiencing?",
+      "Taking care of your emotional wellbeing benefits both you and your baby. There are many resources and strategies available. Would you like to discuss specific concerns or coping methods?"
+    ]
+  },
+  "labor_delivery_comprehensive": {
+    "patterns": [
+      "labor signs",
+      "birth plan",
+      "delivery options",
+      "natural birth",
+      "epidural",
+      "cesarean section",
+      "water birth",
+      "home birth",
+      "hospital birth",
+      "midwife",
+      "doula",
+      "labor positions",
+      "breathing techniques",
+      "pain management",
+      "inducing labor",
+      "overdue",
+      "early labor",
+      "active labor",
+      "transition"
+    ],
+    "responses": [
+      "Preparing for labor and delivery involves understanding your options and creating a birth plan that works for you. What aspects of birth preparation interest you most?",
+      "There are many approaches to labor and delivery, from natural methods to medical interventions. The key is being informed about your choices. What would you like to know about?",
+      "Birth preparation includes physical, emotional, and practical aspects. From labor positions to pain management options, there's much to consider. How can I help you prepare?"
+    ]
+  },
+  "postpartum_comprehensive": {
+    "patterns": [
+      "postpartum recovery",
+      "after birth",
+      "healing",
+      "breastfeeding",
+      "bottle feeding",
+      "newborn care",
+      "sleep deprivation",
+      "postpartum bleeding",
+      "episiotomy care",
+      "c-section recovery",
+      "returning to work",
+      "contraception",
+      "future pregnancies",
+      "postpartum checkup",
+      "baby blues",
+      "postpartum depression"
+    ],
+    "responses": [
+      "Postpartum recovery is an important time for both physical healing and emotional adjustment. Recovery looks different for everyone. What aspects of postpartum care are you concerned about?",
+      "The postpartum period involves healing, learning to care for your baby, and adjusting to new routines. Support and information are key. How can I help you prepare for or navigate this time?",
+      "Postpartum care includes physical recovery, emotional wellbeing, infant care, and family adjustment. It's a significant transition that deserves attention and support."
+    ]
+  },
+  "high_risk_pregnancy": {
+    "patterns": [
+      "high risk pregnancy",
+      "advanced maternal age",
+      "multiple pregnancy",
+      "twins",
+      "triplets",
+      "chronic conditions",
+      "diabetes",
+      "hypertension",
+      "autoimmune",
+      "previous complications",
+      "fertility treatments",
+      "bed rest",
+      "specialist care",
+      "maternal fetal medicine",
+      "genetic testing",
+      "amniocentesis"
+    ],
+    "responses": [
+      "High-risk pregnancies require specialized care and monitoring, but many result in healthy outcomes. Working with maternal-fetal medicine specialists can provide the best care. What makes your pregnancy high-risk?",
+      "While a high-risk designation can be concerning, it simply means you need extra monitoring and care. Many factors can contribute to this classification. How can I help you understand your specific situation?",
+      "High-risk pregnancies benefit from individualized care plans and close monitoring. The goal is to optimize outcomes for both mother and baby through specialized attention."
+    ]
+  },
+  "lifestyle_wellness": {
+    "patterns": [
+      "exercise pregnancy",
+      "prenatal yoga",
+      "swimming",
+      "walking",
+      "travel",
+      "work during pregnancy",
+      "sleep",
+      "sexual health",
+      "beauty treatments",
+      "hair dye",
+      "massage",
+      "spa treatments",
+      "stress reduction",
+      "meditation",
+      "relaxation techniques",
+      "partner support",
+      "family preparation"
+    ],
+    "responses": [
+      "Maintaining a healthy lifestyle during pregnancy supports your wellbeing and baby's development. This includes safe exercise, good sleep, stress management, and self-care. What lifestyle aspects interest you?",
+      "Pregnancy doesn't mean putting life on hold, but some modifications may be needed for safety and comfort. I can help you understand what's safe and beneficial during pregnancy.",
+      "Wellness during pregnancy encompasses physical activity, mental health, relationships, and self-care. Creating a balanced approach supports your journey. What would you like to focus on?"
+    ]
+  },
+  "emergency_situations": {
+    "patterns": [
+      "emergency",
+      "severe bleeding",
+      "severe pain",
+      "vision changes",
+      "severe headache",
+      "difficulty breathing",
+      "chest pain",
+      "fever",
+      "decreased fetal movement",
+      "water breaking",
+      "contractions early",
+      "call doctor",
+      "go to hospital",
+      "urgent care",
+      "when to worry",
+      "warning signs"
+    ],
+    "responses": [
+      "\u26a0\ufe0f This sounds like it could require immediate medical attention. Please contact your healthcare provider right away or go to the emergency room if you're experiencing severe symptoms like heavy bleeding, severe pain, vision changes, or difficulty breathing.",
+      "\u26a0\ufe0f Some pregnancy symptoms require urgent medical care. If you're experiencing severe or concerning symptoms, don't hesitate to seek immediate medical attention. Trust your instincts - it's better to be safe.",
+      "\u26a0\ufe0f Emergency warning signs in pregnancy include: severe bleeding, severe headaches, vision problems, severe abdominal pain, fever over 100.4\u00b0F, or significant decrease in baby's movements. Seek immediate care for these symptoms."
+    ]
+  },
+  "family_partner_support": {
+    "patterns": [
+      "partner support",
+      "family involvement",
+      "preparing siblings",
+      "grandparents",
+      "relationship changes",
+      "communication",
+      "intimacy",
+      "support system",
+      "involving father",
+      "single pregnancy",
+      "family dynamics",
+      "cultural considerations",
+      "extended family",
+      "preparing children",
+      "family planning"
+    ],
+    "responses": [
+      "Having a strong support system during pregnancy and after birth is incredibly valuable. This can include partners, family, friends, and community resources. How is your support system?",
+      "Pregnancy affects the whole family, and preparing everyone can help with the transition. Communication and involvement are key. What aspects of family support would you like to discuss?",
+      "Building and maintaining supportive relationships during pregnancy benefits everyone involved. This includes educating partners and family about pregnancy and preparing for the new baby."
+    ]
+  }
+}
