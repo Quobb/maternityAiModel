@@ -1,368 +1,705 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Security
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, Field
-import tensorflow as tf
 import numpy as np
 import pandas as pd
-import pickle
+import json
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union, Any
 import uvicorn
+import os
+import sys
+
+# Import the AdvancedMaternalHealthAI class
+try:
+    from maternal_health_ai import AdvancedMaternalHealthAI
+except ImportError:
+    raise ImportError("Could not import AdvancedMaternalHealthAI. Ensure 'maternal_health_ai.py' is in the same directory or in your PYTHONPATH.")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Utility function to convert NumPy types to Python native types
+def convert_numpy_types(obj):
+    """Recursively convert NumPy types to Python native types for JSON serialization"""
+    if isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, np.bool_):
+        return bool(obj)
+    elif isinstance(obj, dict):
+        return {key: convert_numpy_types(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_numpy_types(item) for item in obj]
+    elif isinstance(obj, tuple):
+        return tuple(convert_numpy_types(item) for item in obj)
+    else:
+        return obj
+
 app = FastAPI(
-    title="Maternal Health Risk Prediction API",
-    description="AI-powered maternal health risk assessment and recommendations for pregnant mothers",
-    version="1.0.0"
+    title="Advanced Maternal Health AI API",
+    description="Comprehensive AI-powered maternal health system with risk prediction, chat support, and personalized recommendations",
+    version="3.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc"
 )
 
-# Global variables for models and preprocessors
-risk_model = None
-health_model = None
-scaler = None
-risk_le = None
-health_le = None
-feature_columns = None
+# Configure CORS for production
+ALLOWED_ORIGINS = [
+    "http://localhost:3000",  # Adjust for your frontend URL
+    "https://your-production-frontend.com"  # Add production frontend URL
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-def load_models():
-    """Load all models and preprocessors at startup"""
-    global risk_model, health_model, scaler, risk_le, health_le, feature_columns
-    
-    try:
-        # Load models
-        risk_model = tf.keras.models.load_model('maternal_models/risk_model.keras')
-        health_model = tf.keras.models.load_model('maternal_models/health_model.keras')
-        
-        # Load preprocessors
-        with open('maternal_models/scaler.pkl', 'rb') as f:
-            scaler = pickle.load(f)
-        with open('maternal_models/risk_label_encoder.pkl', 'rb') as f:
-            risk_le = pickle.load(f)
-        with open('maternal_models/health_label_encoder.pkl', 'rb') as f:
-            health_le = pickle.load(f)
-        with open('maternal_models/feature_columns.pkl', 'rb') as f:
-            feature_columns = pickle.load(f)
-            
-        logger.info("All models and preprocessors loaded successfully")
-        return True
-        
-    except Exception as e:
-        logger.error(f"Error loading models: {str(e)}")
-        return False
+# Global AI system instance
+ai_system: Optional[AdvancedMaternalHealthAI] = None
 
-# Load models at startup
-@app.on_event("startup")
-async def startup_event():
-    success = load_models()
-    if not success:
-        logger.error("Failed to load models. Please ensure models are trained and saved properly.")
+# OAuth2 for admin authentication
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")  # Token endpoint for authentication
 
-# Input schemas
+# Admin token validation (replace with proper auth in production)
+async def verify_admin_token(token: str = Security(oauth2_scheme)):
+    if token != "admin_secret_token":  # Replace with secure token validation
+        raise HTTPException(status_code=403, detail="Invalid admin token")
+    return token
+
+# Enhanced Input Schemas matching the trainer data
 class MaternalHealthInput(BaseModel):
-    """Input schema for maternal health prediction"""
-    age: int = Field(..., ge=16, le=50, description="Mother's age in years")
-    gestational_week: float = Field(..., ge=12, le=42, description="Current week of pregnancy")
-    systolic_bp: int = Field(..., ge=80, le=200, description="Systolic blood pressure (mmHg)")
-    diastolic_bp: int = Field(..., ge=50, le=120, description="Diastolic blood pressure (mmHg)")
-    blood_sugar: float = Field(..., ge=60, le=250, description="Blood sugar level (mg/dL)")
-    body_temp: float = Field(..., ge=96, le=104, description="Body temperature (°F)")
-    heart_rate: int = Field(..., ge=50, le=150, description="Heart rate (beats per minute)")
-    bmi: float = Field(..., ge=15, le=50, description="Body Mass Index")
-    previous_pregnancies: int = Field(..., ge=0, le=10, description="Number of previous pregnancies")
-    weight_gain: float = Field(..., ge=-20, le=80, description="Weight gain during pregnancy (lbs)")
+    """Comprehensive maternal health input matching the AI system requirements"""
+    # Demographics
+    age: float = Field(..., ge=15, le=50, description="Mother's age in years")
+    education_level: int = Field(default=3, ge=1, le=5, description="Education level (1-5)")
+    income_level: int = Field(default=2, ge=1, le=4, description="Income level (1-4)")
+    marital_status: int = Field(default=1, ge=0, le=1, description="Marital status (0: single, 1: married)")
+    employment: int = Field(default=1, ge=0, le=1, description="Employment status (0: unemployed, 1: employed)")
+    
+    # Medical history
+    previous_pregnancies: int = Field(default=0, ge=0, le=10, description="Number of previous pregnancies")
+    previous_miscarriages: int = Field(default=0, ge=0, le=5, description="Number of previous miscarriages")
+    diabetes_history: int = Field(default=0, ge=0, le=1, description="Diabetes history (0: no, 1: yes)")
+    hypertension_history: int = Field(default=0, ge=0, le=1, description="Hypertension history (0: no, 1: yes)")
+    heart_disease: int = Field(default=0, ge=0, le=1, description="Heart disease (0: no, 1: yes)")
+    kidney_disease: int = Field(default=0, ge=0, le=1, description="Kidney disease (0: no, 1: yes)")
+    autoimmune_disorders: int = Field(default=0, ge=0, le=1, description="Autoimmune disorders (0: no, 1: yes)")
+    mental_health_history: int = Field(default=0, ge=0, le=1, description="Mental health history (0: no, 1: yes)")
+    
+    # Current pregnancy
+    gestational_age: float = Field(..., ge=6, le=40, description="Gestational age in weeks")
+    weight_pre_pregnancy: float = Field(..., ge=45, le=130, description="Pre-pregnancy weight in kg")
+    height: float = Field(..., ge=140, le=185, description="Height in cm")
+    weight_gain: float = Field(default=0, ge=-2, le=25, description="Weight gain during pregnancy in kg")
+    
+    # Vital signs with pregnancy-related ranges
+    systolic_bp: float = Field(..., ge=85, le=170, description="Systolic blood pressure")
+    diastolic_bp: float = Field(..., ge=55, le=110, description="Diastolic blood pressure")
+    heart_rate: float = Field(default=80, ge=50, le=110, description="Heart rate")
+    
+    # Lab values with pregnancy-specific ranges
+    hemoglobin: float = Field(default=11.5, ge=7, le=16, description="Hemoglobin level")
+    glucose_fasting: float = Field(default=90, ge=65, le=160, description="Fasting glucose level")
+    protein_urine: int = Field(default=0, ge=0, le=3, description="Protein in urine (0-3)")
+    white_blood_cells: float = Field(default=8000, ge=4000, le=16000, description="White blood cell count")
+    platelets: float = Field(default=250000, ge=120000, le=400000, description="Platelet count")
+    
+    # Lifestyle factors
+    smoking: int = Field(default=0, ge=0, le=1, description="Smoking status (0: no, 1: yes)")
+    alcohol: int = Field(default=0, ge=0, le=1, description="Alcohol consumption (0: no, 1: yes)")
+    drug_use: int = Field(default=0, ge=0, le=1, description="Drug use (0: no, 1: yes)")
+    exercise_level: int = Field(default=2, ge=1, le=4, description="Exercise level (1-4)")
+    stress_level: int = Field(default=2, ge=1, le=5, description="Stress level (1-5)")
+    sleep_hours: float = Field(default=7, ge=4, le=10, description="Hours of sleep per night")
+    
+    # Nutritional status
+    vitamin_d: float = Field(default=30, ge=8, le=70, description="Vitamin D level")
+    iron_levels: float = Field(default=15, ge=6, le=25, description="Iron levels")
+    folic_acid_intake: int = Field(default=1, ge=0, le=1, description="Folic acid intake (0: no, 1: yes)")
+    prenatal_vitamins: int = Field(default=1, ge=0, le=1, description="Prenatal vitamins (0: no, 1: yes)")
+    
+    # Social determinants
+    access_to_healthcare: int = Field(default=3, ge=1, le=4, description="Healthcare access (1-4)")
+    social_support: int = Field(default=3, ge=1, le=4, description="Social support level (1-4)")
+    transportation_access: int = Field(default=1, ge=0, le=1, description="Transportation access (0: no, 1: yes)")
+    insurance_coverage: int = Field(default=1, ge=0, le=1, description="Insurance coverage (0: no, 1: yes)")
+    
+    # Environmental factors
+    air_quality_index: float = Field(default=50, ge=15, le=180, description="Air quality index")
+    water_quality: int = Field(default=2, ge=1, le=3, description="Water quality (1-3)")
+    housing_quality: int = Field(default=3, ge=1, le=4, description="Housing quality (1-4)")
+    
+    # Fetal measurements
+    fetal_weight_percentile: float = Field(default=50, ge=5, le=95, description="Fetal weight percentile")
+    amniotic_fluid_level: int = Field(default=2, ge=1, le=3, description="Amniotic fluid level (1: low, 2: normal, 3: high)")
+    placental_position: int = Field(default=2, ge=1, le=3, description="Placental position (1: previa, 2: normal, 3: abruption)")
+    
+    @property
+    def bmi_pre_pregnancy(self) -> float:
+        """Calculate BMI from weight and height"""
+        return self.weight_pre_pregnancy / ((self.height / 100) ** 2)
 
     class Config:
         schema_extra = {
             "example": {
                 "age": 28,
-                "gestational_week": 32.0,
+                "gestational_age": 32.0,
+                "weight_pre_pregnancy": 65.0,
+                "height": 165.0,
                 "systolic_bp": 125,
                 "diastolic_bp": 80,
-                "blood_sugar": 95.0,
-                "body_temp": 98.6,
-                "heart_rate": 85,
-                "bmi": 24.5,
+                "glucose_fasting": 95.0,
+                "hemoglobin": 11.5,
                 "previous_pregnancies": 1,
-                "weight_gain": 28.0
+                "diabetes_history": 0,
+                "smoking": 0,
+                "exercise_level": 2,
+                "stress_level": 2
             }
         }
 
+class SimpleMaternalInput(BaseModel):
+    """Simplified input for basic predictions"""
+    age: float = Field(..., ge=15, le=50)
+    gestational_age: float = Field(..., ge=6, le=40)
+    systolic_bp: float = Field(..., ge=85, le=170)
+    diastolic_bp: float = Field(..., ge=55, le=110)
+    weight_pre_pregnancy: float = Field(..., ge=45, le=130)
+    height: float = Field(..., ge=140, le=185)
+    
+    def to_comprehensive(self) -> MaternalHealthInput:
+        """Convert to comprehensive input with defaults"""
+        return MaternalHealthInput(
+            age=self.age,
+            gestational_age=self.gestational_age,
+            weight_pre_pregnancy=self.weight_pre_pregnancy,
+            height=self.height,
+            systolic_bp=self.systolic_bp,
+            diastolic_bp=self.diastolic_bp
+        )
+
+class ChatInput(BaseModel):
+    """Chat input schema"""
+    message: str = Field(..., min_length=1, max_length=1000, description="User's message")
+    user_id: Optional[str] = Field(default="anonymous", description="User identifier")
+    context: Optional[Dict[str, Any]] = Field(default=None, description="Conversation context")
+    health_data: Optional[MaternalHealthInput] = Field(default=None, description="Health data for context")
+
+# Response Schemas
 class PredictionResponse(BaseModel):
-    """Response schema for predictions"""
-    risk_level: str
-    risk_confidence: float
-    health_recommendation: str
-    health_confidence: float
-    clinical_insights: List[str]
-    all_risk_probabilities: Dict[str, float]
-    all_health_probabilities: Dict[str, float]
+    """Comprehensive prediction response"""
+    predictions: Dict[str, Any]
+    recommendations: List[Dict[str, Any]]
+    monitoring_schedule: Dict[str, Any]
+    educational_resources: List[str]
     timestamp: str
+    success: bool
 
-class HealthCheckResponse(BaseModel):
-    """Health check response"""
-    status: str
+class ChatResponse(BaseModel):
+    """Chat response schema"""
+    response: str
+    intent: Optional[str] = None
+    confidence: Optional[float] = None
+    emergency: bool = False
+    emotions_detected: Optional[List[str]] = None
+    followup: Optional[str] = None
+    suggestions: List[str] = []
     timestamp: str
-    models_loaded: bool
-    version: str
+    user_id: str
 
-# Helper function to generate clinical insights
-def generate_clinical_insights(input_data: MaternalHealthInput) -> List[str]:
-    """Generate clinical insights based on input parameters"""
-    insights = []
-    
-    # Age-related insights
-    if input_data.age < 18:
-        insights.append("⚠️ Teen pregnancy - requires specialized care and monitoring")
-    elif input_data.age > 35:
-        insights.append("ℹ️ Advanced maternal age - increased monitoring recommended")
-    
-    # Blood pressure insights
-    if input_data.systolic_bp > 140 or input_data.diastolic_bp > 90:
-        insights.append("⚠️ Hypertension detected - immediate medical evaluation needed")
-    elif input_data.systolic_bp > 130 or input_data.diastolic_bp > 85:
-        insights.append("⚠️ Pre-hypertension - monitor blood pressure closely")
-    
-    # Blood sugar insights
-    if input_data.blood_sugar > 140:
-        insights.append("⚠️ High blood glucose - gestational diabetes screening recommended")
-    elif input_data.blood_sugar > 125:
-        insights.append("⚠️ Elevated blood glucose - dietary consultation advised")
-    
-    # BMI insights
-    if input_data.bmi < 18.5:
-        insights.append("⚠️ Underweight - nutritional support and weight gain monitoring needed")
-    elif input_data.bmi > 30:
-        insights.append("⚠️ Obesity - increased risk of complications, dietary guidance recommended")
-    elif input_data.bmi > 25:
-        insights.append("ℹ️ Overweight - monitor weight gain and consider nutritional counseling")
-    
-    # Heart rate insights
-    if input_data.heart_rate > 100:
-        insights.append("⚠️ Elevated heart rate - assess for fever, anxiety, or cardiac issues")
-    elif input_data.heart_rate < 60:
-        insights.append("ℹ️ Low heart rate - monitor if symptomatic")
-    
-    # Temperature insights
-    if input_data.body_temp > 100.4:
-        insights.append("⚠️ Fever detected - evaluate for infection")
-    elif input_data.body_temp < 97.0:
-        insights.append("ℹ️ Low body temperature - monitor for hypothermia")
-    
-    # Gestational week insights
-    if input_data.gestational_week < 20 and len([i for i in insights if "⚠️" in i]) > 2:
-        insights.append("⚠️ Multiple risk factors in early pregnancy - close monitoring essential")
-    elif input_data.gestational_week > 37:
-        insights.append("ℹ️ Full term - monitor for signs of labor")
-    
-    # Weight gain insights
-    expected_gain = 25 if input_data.bmi < 25 else 15 if input_data.bmi < 30 else 10
-    if abs(input_data.weight_gain - expected_gain) > 15:
-        insights.append("⚠️ Abnormal weight gain pattern - nutritional assessment recommended")
-    
-    return insights
+class HealthReportResponse(BaseModel):
+    """Health report response"""
+    assessment_date: str
+    patient_summary: Dict[str, Any]
+    risk_predictions: Dict[str, Any]
+    recommendations: List[Dict[str, Any]]
+    monitoring_schedule: Dict[str, Any]
+    educational_resources: List[str]
+    emergency_contacts: List[str]
 
-# Main prediction endpoint
+# Dependency for AI system
+async def get_ai_system() -> AdvancedMaternalHealthAI:
+    """Get the AI system instance"""
+    if ai_system is None:
+        raise HTTPException(status_code=503, detail="AI system not initialized")
+    if not ai_system.models or not ai_system.chat_model:
+        raise HTTPException(status_code=503, detail="AI models not loaded")
+    return ai_system
+
+# Startup event
+@app.on_event("startup")
+async def startup_event():
+    """Initialize the AI system on startup"""
+    global ai_system
+    
+    try:
+        logger.info("Initializing Advanced Maternal Health AI System...")
+        ai_system = AdvancedMaternalHealthAI()
+        
+        # Try to load existing models
+        models_loaded = ai_system.load_models()
+        
+        if not models_loaded:
+            logger.warning("No existing models found. Please train models using the /train-models endpoint.")
+        else:
+            logger.info("AI system initialized successfully with pre-trained models!")
+            
+    except Exception as e:
+        logger.error(f"Failed to initialize AI system: {str(e)}")
+        ai_system = None
+        raise HTTPException(status_code=500, detail=f"Failed to initialize AI system: {str(e)}")
+
+# Core Prediction Endpoints
 @app.post("/predict", response_model=PredictionResponse)
-async def predict_maternal_health(input_data: MaternalHealthInput):
+async def comprehensive_prediction(
+    health_data: MaternalHealthInput,
+    ai: AdvancedMaternalHealthAI = Depends(get_ai_system)
+):
     """
-    Predict maternal health risk and provide recommendations
+    Get comprehensive maternal health predictions and recommendations
     """
     try:
-        if risk_model is None or health_model is None:
-            raise HTTPException(status_code=503, detail="Models not loaded")
+        # Convert to dictionary
+        health_dict = health_data.dict()
+        health_dict['bmi_pre_pregnancy'] = health_data.bmi_pre_pregnancy
         
-        # Prepare input data in the correct order
-        input_array = np.array([[
-            input_data.age,
-            input_data.gestational_week,
-            input_data.systolic_bp,
-            input_data.diastolic_bp,
-            input_data.blood_sugar,
-            input_data.body_temp,
-            input_data.heart_rate,
-            input_data.bmi,
-            input_data.previous_pregnancies,
-            input_data.weight_gain
-        ]])
+        # Get predictions and convert NumPy types
+        predictions = ai.predict_comprehensive_health_risk(health_dict)
+        predictions = convert_numpy_types(predictions)
         
-        # Scale input
-        input_scaled = scaler.transform(input_array)
+        # Get personalized recommendations
+        recommendations = ai.generate_personalized_recommendations(health_dict)
+        recommendations = convert_numpy_types(recommendations)
         
-        # Make predictions
-        risk_pred = risk_model.predict(input_scaled, verbose=0)
-        health_pred = health_model.predict(input_scaled, verbose=0)
+        # Get monitoring schedule
+        monitoring_schedule = ai.generate_monitoring_schedule(health_dict)
+        monitoring_schedule = convert_numpy_types(monitoring_schedule)
         
-        # Get risk level
-        risk_idx = np.argmax(risk_pred[0])
-        risk_level = risk_le.inverse_transform([risk_idx])[0]
-        risk_confidence = float(risk_pred[0][risk_idx])
-        
-        # Get health recommendation
-        health_idx = np.argmax(health_pred[0])
-        health_recommendation = health_le.inverse_transform([health_idx])[0]
-        health_confidence = float(health_pred[0][health_idx])
-        
-        # Generate clinical insights
-        clinical_insights = generate_clinical_insights(input_data)
-        
-        # Prepare probability dictionaries
-        all_risk_probs = {
-            label: float(prob) 
-            for label, prob in zip(risk_le.classes_, risk_pred[0])
-        }
-        
-        all_health_probs = {
-            label: float(prob) 
-            for label, prob in zip(health_le.classes_, health_pred[0])
-        }
+        # Get educational resources
+        educational_resources = ai.get_educational_resources(health_dict)
+        educational_resources = convert_numpy_types(educational_resources)
         
         return PredictionResponse(
-            risk_level=risk_level,
-            risk_confidence=risk_confidence,
-            health_recommendation=health_recommendation,
-            health_confidence=health_confidence,
-            clinical_insights=clinical_insights,
-            all_risk_probabilities=all_risk_probs,
-            all_health_probabilities=all_health_probs,
-            timestamp=datetime.now().isoformat()
+            predictions=predictions,
+            recommendations=recommendations,
+            monitoring_schedule=monitoring_schedule,
+            educational_resources=educational_resources,
+            timestamp=datetime.now().isoformat(),
+            success=True
         )
         
     except Exception as e:
         logger.error(f"Prediction error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
 
-# Simplified health tips endpoint
-@app.post("/health-tips")
-async def get_health_tips(input_data: MaternalHealthInput):
+@app.post("/predict-simple", response_model=PredictionResponse)
+async def simple_prediction(
+    health_data: SimpleMaternalInput,
+    ai: AdvancedMaternalHealthAI = Depends(get_ai_system)
+):
     """
-    Get health tips based on maternal health parameters
+    Simple prediction endpoint with basic health data
     """
     try:
-        if health_model is None:
-            raise HTTPException(status_code=503, detail="Health model not loaded")
+        # Convert to comprehensive format
+        comprehensive_data = health_data.to_comprehensive()
         
-        # Prepare and scale input
-        input_array = np.array([[
-            input_data.age, input_data.gestational_week, input_data.systolic_bp,
-            input_data.diastolic_bp, input_data.blood_sugar, input_data.body_temp,
-            input_data.heart_rate, input_data.bmi, input_data.previous_pregnancies,
-            input_data.weight_gain
-        ]])
-        
-        input_scaled = scaler.transform(input_array)
-        prediction = health_model.predict(input_scaled, verbose=0)
-        
-        health_idx = np.argmax(prediction[0])
-        health_category = health_le.inverse_transform([health_idx])[0]
-        confidence = float(prediction[0][health_idx])
-        
-        # Generate specific tips based on category
-        tips = {
-            "Nutrition Focus": [
-                "Focus on balanced meals with adequate protein",
-                "Monitor blood sugar levels regularly",
-                "Include folate-rich foods and prenatal vitamins",
-                "Stay hydrated with plenty of water"
-            ],
-            "Exercise Focus": [
-                "Engage in safe prenatal exercises like walking",
-                "Practice prenatal yoga for flexibility",
-                "Maintain appropriate weight gain",
-                "Consult with healthcare provider about exercise routine"
-            ],
-            "Wellness Focus": [
-                "Get adequate rest and sleep",
-                "Practice stress management techniques",
-                "Attend all prenatal appointments",
-                "Monitor baby's movements regularly"
-            ]
-        }
-        
-        return {
-            "category": health_category,
-            "confidence": confidence,
-            "tips": tips.get(health_category, ["Consult with your healthcare provider"]),
-            "timestamp": datetime.now().isoformat()
-        }
+        # Use the comprehensive prediction
+        return await comprehensive_prediction(comprehensive_data, ai)
         
     except Exception as e:
-        logger.error(f"Health tips error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to generate health tips: {str(e)}")
+        logger.error(f"Simple prediction error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
 
-# Risk assessment endpoint
-@app.post("/risk-assessment")
-async def assess_risk(input_data: MaternalHealthInput):
+# Chat Endpoints
+@app.post("/chat", response_model=ChatResponse)
+async def chat_with_ai(
+    chat_input: ChatInput,
+    ai: AdvancedMaternalHealthAI = Depends(get_ai_system)
+):
     """
-    Assess maternal health risk level
+    Chat with the advanced maternal health AI
     """
     try:
-        if risk_model is None:
-            raise HTTPException(status_code=503, detail="Risk model not loaded")
+        # Prepare user context
+        user_context = chat_input.context or {}
         
-        # Prepare and scale input
-        input_array = np.array([[
-            input_data.age, input_data.gestational_week, input_data.systolic_bp,
-            input_data.diastolic_bp, input_data.blood_sugar, input_data.body_temp,
-            input_data.heart_rate, input_data.bmi, input_data.previous_pregnancies,
-            input_data.weight_gain
-        ]])
+        # Add health data context if provided
+        if chat_input.health_data:
+            health_dict = chat_input.health_data.dict()
+            health_dict['bmi_pre_pregnancy'] = chat_input.health_data.bmi_pre_pregnancy
+            
+            # Add some health indicators to context
+            if health_dict['gestational_age'] < 13:
+                user_context['trimester_1'] = True
+            elif health_dict['gestational_age'] < 27:
+                user_context['trimester_2'] = True
+            else:
+                user_context['trimester_3'] = True
+                
+            if health_dict['diabetes_history'] == 1:
+                user_context['gestational_diabetes'] = True
+            if health_dict['hemoglobin'] < 11:
+                user_context['anemia'] = True
+            if health_dict['previous_pregnancies'] == 0:
+                user_context['first_pregnancy'] = True
         
-        input_scaled = scaler.transform(input_array)
-        prediction = risk_model.predict(input_scaled, verbose=0)
+        # Get AI response
+        response = ai.get_advanced_chat_response(
+            chat_input.message,
+            user_context,
+            chat_input.user_id
+        )
         
-        risk_idx = np.argmax(prediction[0])
-        risk_level = risk_le.inverse_transform([risk_idx])[0]
-        confidence = float(prediction[0][risk_idx])
+        # Convert NumPy types
+        response = convert_numpy_types(response)
         
-        # Risk-specific recommendations
-        recommendations = {
-            "Low Risk": "Continue regular prenatal care and healthy lifestyle",
-            "Medium Risk": "Increased monitoring recommended - consult healthcare provider",
-            "High Risk": "Immediate medical evaluation and close monitoring required"
-        }
+        return ChatResponse(
+            response=response['response'],
+            intent=response.get('intent'),
+            confidence=response.get('confidence'),
+            emergency=response.get('emergency', False),
+            emotions_detected=response.get('emotions_detected', []),
+            followup=response.get('followup'),
+            suggestions=response.get('suggestions', []),
+            timestamp=datetime.now().isoformat(),
+            user_id=chat_input.user_id
+        )
         
-        return {
-            "risk_level": risk_level,
-            "confidence": confidence,
-            "recommendation": recommendations.get(risk_level, "Consult healthcare provider"),
-            "all_probabilities": {
-                label: float(prob) 
-                for label, prob in zip(risk_le.classes_, prediction[0])
-            },
+    except Exception as e:
+        logger.error(f"Chat error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Chat failed: {str(e)}")
+
+@app.post("/integrated-consultation")
+async def integrated_consultation(
+    chat_input: ChatInput,
+    ai: AdvancedMaternalHealthAI = Depends(get_ai_system)
+):
+    """
+    Integrated consultation combining chat and health predictions
+    """
+    try:
+        response_data = {
+            "chat_response": "",
+            "prediction_results": None,
+            "health_recommendations": [],
+            "clinical_insights": [],
             "timestamp": datetime.now().isoformat()
         }
+        
+        # Get chat response
+        user_context = chat_input.context or {}
+        if chat_input.health_data:
+            health_dict = chat_input.health_data.dict()
+            health_dict['bmi_pre_pregnancy'] = chat_input.health_data.bmi_pre_pregnancy
+        else:
+            health_dict = None
+        
+        chat_response = ai.get_advanced_chat_response(
+            chat_input.message,
+            user_context,
+            chat_input.user_id
+        )
+        response_data["chat_response"] = chat_response['response']
+        response_data["emergency"] = chat_response.get('emergency', False)
+        response_data["intent"] = chat_response.get('intent')
+        response_data["emotions_detected"] = chat_response.get('emotions_detected', [])
+        
+        # Add predictions if health data is available
+        if health_dict:
+            predictions = ai.predict_comprehensive_health_risk(health_dict)
+            recommendations = ai.generate_personalized_recommendations(health_dict)
+            
+            # Convert NumPy types
+            predictions = convert_numpy_types(predictions)
+            recommendations = convert_numpy_types(recommendations)
+            
+            response_data["prediction_results"] = predictions
+            response_data["health_recommendations"] = [rec['recommendation'] for rec in recommendations[:5]]
+            
+            # Generate clinical insights summary
+            clinical_insights = []
+            for target, pred_info in predictions.items():
+                if 'prediction' in pred_info:
+                    if pred_info['prediction'] in ['High', 'Critical', 1]:
+                        clinical_insights.append(f"Warning: {target.replace('_', ' ').title()}: Requires attention (Confidence: {pred_info['confidence']:.2f})")
+                    elif pred_info['prediction'] in ['Medium', 'Moderate']:
+                        clinical_insights.append(f"Info: {target.replace('_', ' ').title()}: Monitor closely (Confidence: {pred_info['confidence']:.2f})")
+            
+            response_data["clinical_insights"] = clinical_insights[:3]
+        
+        # Convert all NumPy types in response_data
+        response_data = convert_numpy_types(response_data)
+        
+        return response_data
+        
+    except Exception as e:
+        logger.error(f"Integrated consultation error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Consultation failed: {str(e)}")
+
+# Health Report Endpoint
+@app.post("/health-report", response_model=HealthReportResponse)
+async def generate_health_report(
+    health_data: MaternalHealthInput,
+    ai: AdvancedMaternalHealthAI = Depends(get_ai_system)
+):
+    """
+    Generate comprehensive health report
+    """
+    try:
+        # Convert to dictionary
+        health_dict = health_data.dict()
+        health_dict['bmi_pre_pregnancy'] = health_data.bmi_pre_pregnancy
+        
+        # Generate comprehensive report
+        report = ai.generate_comprehensive_health_report(health_dict)
+        
+        # Convert NumPy types
+        report = convert_numpy_types(report)
+        
+        return HealthReportResponse(**report)
+        
+    except Exception as e:
+        logger.error(f"Health report error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Report generation failed: {str(e)}")
+
+# Risk Assessment Endpoints
+@app.post("/risk-assessment")
+async def risk_assessment(
+    health_data: MaternalHealthInput,
+    ai: AdvancedMaternalHealthAI = Depends(get_ai_system)
+):
+    """
+    Detailed risk assessment with specific focus areas
+    """
+    try:
+        health_dict = health_data.dict()
+        health_dict['bmi_pre_pregnancy'] = health_data.bmi_pre_pregnancy
+        
+        predictions = ai.predict_comprehensive_health_risk(health_dict)
+        recommendations = ai.generate_personalized_recommendations(health_dict)
+        
+        # Focus on risk-related predictions
+        risk_summary = {
+            "overall_risk": predictions.get('risk_level', {}).get('prediction', 'Unknown'),
+            "specific_risks": {},
+            "recommendations": [rec for rec in recommendations if rec['priority'] in ['High', 'Critical']],
+            "monitoring_needs": ai.generate_monitoring_schedule(health_dict),
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        # Extract specific risk predictions
+        risk_conditions = ['gestational_diabetes', 'preeclampsia', 'preterm_birth_risk', 
+                          'postpartum_depression_risk', 'cesarean_risk']
+        
+        for condition in risk_conditions:
+            if condition in predictions and 'prediction' in predictions[condition]:
+                risk_summary["specific_risks"][condition] = {
+                    "risk": predictions[condition]['prediction'],
+                    "confidence": predictions[condition]['confidence'],
+                    "algorithm": predictions[condition]['algorithm_used']
+                }
+        
+        # Convert NumPy types
+        risk_summary = convert_numpy_types(risk_summary)
+        
+        return risk_summary
         
     except Exception as e:
         logger.error(f"Risk assessment error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Risk assessment failed: {str(e)}")
 
-# Health check endpoint
-@app.get("/health", response_model=HealthCheckResponse)
+# Health Tips and Recommendations
+@app.post("/health-tips")
+async def get_health_tips(
+    health_data: MaternalHealthInput,
+    focus_area: Optional[str] = None,
+    ai: AdvancedMaternalHealthAI = Depends(get_ai_system)
+):
+    """
+    Get personalized health tips and recommendations
+    """
+    try:
+        health_dict = health_data.dict()
+        health_dict['bmi_pre_pregnancy'] = health_data.bmi_pre_pregnancy
+        
+        recommendations = ai.generate_personalized_recommendations(health_dict)
+        educational_resources = ai.get_educational_resources(health_dict)
+        
+        # Filter by focus area if specified
+        if focus_area:
+            recommendations = [rec for rec in recommendations 
+                             if focus_area.lower() in rec['category'].lower()]
+        
+        response_data = {
+            "gestational_age": health_data.gestational_age,
+            "recommendations": recommendations,
+            "educational_resources": educational_resources,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        # Convert NumPy types
+        response_data = convert_numpy_types(response_data)
+        
+        return response_data
+        
+    except Exception as e:
+        logger.error(f"Health tips error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Health tips generation failed: {str(e)}")
+
+# Training Endpoint (for admin use)
+@app.post("/train-models")
+async def train_models():
+    """
+    Train or retrain the AI models (admin endpoint)
+    """
+    try:
+        global ai_system
+        
+        logger.info("Starting model training...")
+        
+        if ai_system is None:
+            ai_system = AdvancedMaternalHealthAI()
+        
+        # Generate dataset and train models
+        dataset = ai_system.generate_comprehensive_maternal_dataset()
+        ai_system.train_comprehensive_models(dataset)
+        
+        # Save models after training
+        ai_system.save_models()
+        
+        response_data = {
+            "message": "Models trained and saved successfully",
+            "dataset_size": len(dataset),
+            "features": list(dataset.columns),
+            "models_trained": list(ai_system.models.keys()),
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        # Convert NumPy types
+        response_data = convert_numpy_types(response_data)
+        
+        return response_data
+        
+    except Exception as e:
+        logger.error(f"Training error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Training failed: {str(e)}")
+
+# System Status and Health Check
+@app.get("/health")
 async def health_check():
     """
     API health check
     """
-    return HealthCheckResponse(
-        status="OK",
-        timestamp=datetime.now().isoformat(),
-        models_loaded=risk_model is not None and health_model is not None,
-        version="1.0.0"
-    )
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "ai_system_available": ai_system is not None,
+        "models_loaded": bool(ai_system and hasattr(ai_system, 'models') and ai_system.models),
+        "chat_available": bool(ai_system and hasattr(ai_system, 'chat_model') and ai_system.chat_model),
+        "version": "3.0.0",
+        "features": [
+            "Comprehensive Risk Prediction",
+            "Advanced Chat System",
+            "Personalized Recommendations",
+            "Health Report Generation",
+            "Emergency Detection",
+            "Clinical Insights"
+        ]
+    }
+
+@app.get("/model-status")
+async def model_status():
+    """
+    Get detailed model status
+    """
+    if ai_system is None:
+        raise HTTPException(status_code=503, detail="AI system not initialized")
+    
+    try:
+        model_info = {}
+        if hasattr(ai_system, 'models') and ai_system.models:
+            for model_name, model_data in ai_system.models.items():
+                model_info[model_name] = {
+                    "algorithm": model_data.get('algorithm', 'Unknown'),
+                    "accuracy": model_data.get('accuracy', 'Unknown'),
+                    "features": len(model_data.get('features', [])),
+                    "available": True
+                }
+        
+        response_data = {
+            "models_available": len(model_info),
+            "chat_model_available": hasattr(ai_system, 'chat_model') and ai_system.chat_model is not None,
+            "intents_loaded": hasattr(ai_system, 'intents') and ai_system.intents is not None,
+            "scalers_available": len(ai_system.scalers) if hasattr(ai_system, 'scalers') and ai_system.scalers else 0,
+            "encoders_available": len(ai_system.encoders) if hasattr(ai_system, 'encoders') and ai_system.encoders else 0,
+            "model_details": model_info,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        # Convert NumPy types
+        response_data = convert_numpy_types(response_data)
+        
+        return response_data
+        
+    except Exception as e:
+        logger.error(f"Status check error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Status check failed: {str(e)}")
 
 # Root endpoint
 @app.get("/")
 async def root():
     """
-    API root endpoint
+    API root endpoint with comprehensive information
     """
     return {
-        "message": "Maternal Health Risk Prediction API",
-        "version": "1.0.0",
-        "documentation": "/docs",
-        "health_check": "/health"
+        "title": "Advanced Maternal Health AI API",
+        "version": "3.0.0",
+        "description": "Comprehensive AI-powered maternal health system",
+        "features": [
+            "Advanced Conversational AI",
+            "Multi-Algorithm Risk Prediction",
+            "Personalized Health Recommendations",
+            "Comprehensive Health Reports",
+            "Emergency Situation Detection",
+            "Clinical Insights Generation",
+            "Progress Monitoring",
+            "Educational Resources"
+        ],
+        "endpoints": {
+            "predictions": {
+                "/predict": "Comprehensive health prediction",
+                "/predict-simple": "Simple prediction with basic data",
+                "/risk-assessment": "Detailed risk assessment",
+                "/health-tips": "Personalized health tips"
+            },
+            "chat": {
+                "/chat": "AI chat support",
+                "/integrated-consultation": "Combined chat and predictions"
+            },
+            "reports": {
+                "/health-report": "Comprehensive health report"
+            },
+            "system": {
+                "/health": "API health check",
+                "/model-status": "Model status information",
+                "/docs": "API documentation"
+            },
+            "admin": {
+                "/train-models": "Train or retrain AI models (admin only)"
+            }
+        },
+        "ai_system_status": "initialized" if ai_system else "not available",
+        "timestamp": datetime.now().isoformat()
     }
 
 # Run the application
@@ -372,5 +709,6 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000,
         reload=True,
-        log_level="info"
+        log_level="info",
+        reload_excludes=["maternal_models/*"]  # Don't reload when model files change
     )
